@@ -11,71 +11,78 @@ enum TokenType {
     TOK_END,
 };
 
-#define TOK_CAPACITY 255
-
-struct TokenArray {
-    size_t len;
-    size_t cap;
-    enum TokenType* types;
-    size_t* starts;
-    size_t* ends;
+struct Token {
+    enum TokenType type;
+    size_t start;
+    size_t end;
 };
 
-bool tok_array_full(struct TokenArray tokens)
+struct TokenStream {
+    char* src;
+    size_t len;
+    struct Token tok;
+};
+
+void tok_stream_init(struct TokenStream* tokens, char* input)
 {
-    return tokens.len >= tokens.cap;
+    tokens->src = input;
+    tokens->len = strlen(input);
+    tokens->tok.type = TOK_ERR;
+    tokens->tok.start = 0;
+    tokens->tok.end = 0;
 }
 
-bool tok_array_push(struct TokenArray* tokens, enum TokenType type,
+bool tok_stream_has_next(struct TokenStream tokens)
+{
+    return tokens.len > 0;
+}
+
+bool tok_stream_push(struct TokenStream* tokens, enum TokenType type,
     size_t start, size_t end)
 {
-    if (tok_array_full(*tokens)) {
+    if (!tok_stream_has_next(*tokens)) {
         return false;
     }
-    tokens->types[tokens->len] = type;
-    tokens->starts[tokens->len] = start;
-    tokens->ends[tokens->len] = end;
-    tokens->len++;
+    size_t len = end;
+    tokens->tok.type = type;
+    tokens->tok.start = tokens->tok.end + start;
+    tokens->tok.end += end;
+    tokens->len -= len;
+    tokens->src += len;
     return true;
 }
 
-bool tokenize_str(struct TokenArray* tokens, char* in, size_t len)
+bool tok_stream_next(struct TokenStream* tokens)
 {
     bool in_tok = false;
     bool in_str = false;
     bool in_num = false;
     size_t last_start = 0;
-    for (size_t i = 0; i <= len; i++) {
-        if (in[i] == '"') {
+    for (size_t i = 0; i <= tokens->len; i++) {
+        if (tokens->src[i] == '"') {
             in_str = !in_str;
             in_tok = in_str;
             if (in_str) {
                 last_start = i;
             } else {
-                if (!tok_array_push(tokens, TOK_STR, last_start, i + 1)) {
-                    return false;
-                }
+                return tok_stream_push(tokens, TOK_STR, last_start, i + 1);
             }
             continue;
         }
-        bool is_sep = !in_str && (in[i] == ' ' || in[i] == '\t' || in[i] == '\0');
+        bool is_sep = !in_str && (tokens->src[i] == ' ' || tokens->src[i] == '\t' || tokens->src[i] == '\0');
         if (is_sep && in_tok) {
-            if (!tok_array_push(tokens, in_num ? TOK_NUM : TOK_SYM, last_start, i)) {
-                return false;
-            }
-            in_num = false;
+            return tok_stream_push(tokens, in_num ? TOK_NUM : TOK_SYM, last_start, i);
         }
         if (!is_sep && !in_tok) {
             last_start = i;
-            in_num = in[i] >= '0' && in[i] <= '9';
+            in_num = tokens->src[i] >= '0' && tokens->src[i] <= '9';
         }
         in_tok = !is_sep;
     }
     if (in_str) {
-        tok_array_push(tokens, TOK_ERR, last_start, len);
+        return tok_stream_push(tokens, TOK_ERR, last_start, tokens->len);
     }
-    tok_array_push(tokens, TOK_END, len, len + 1);
-    return true;
+    return tok_stream_push(tokens, TOK_END, tokens->len, tokens->len + 1);
 }
 
 enum StackCellType {
@@ -90,6 +97,7 @@ enum StackStatus {
 };
 
 enum KnownSymbol {
+    SYM_NOP,
     SYM_ADD,
     SYM_SUB,
     SYM_MUL,
@@ -205,28 +213,32 @@ enum StackStatus stack_machine_exec_sym(struct StackMachine* machine, enum Known
     return status;
 }
 
-enum StackStatus stack_machine_eval(struct StackMachine *machine, char *input, struct TokenArray tokens)
+enum StackStatus stack_machine_eval(struct StackMachine* machine, char* input)
 {
+    struct TokenStream tokens;
     enum StackStatus status = STACK_OK;
     struct StackCell cell;
     enum KnownSymbol sym;
-    char *tokend;
-    for (size_t i = 0; i < tokens.len; i++) {
-        switch (tokens.types[i]) {
+    char* tokend;
+    tok_stream_init(&tokens, input);
+    while (tok_stream_next(&tokens)) {
+        switch (tokens.tok.type) {
         case TOK_NUM:
             cell.type = CELL_TYPE_NUM;
-            cell.num = strtod(&input[tokens.starts[i]], &tokend);
+            cell.num = strtod(&input[tokens.tok.start], &tokend);
             status = stack_machine_push(machine, cell);
             break;
         case TOK_SYM:
-            if (input[tokens.starts[i]] == '+') {
+            if (input[tokens.tok.start] == '+') {
                 sym = SYM_ADD;
-            } else if (input[tokens.starts[i]] == '-') {
+            } else if (input[tokens.tok.start] == '-') {
                 sym = SYM_SUB;
-            } else if (input[tokens.starts[i]] == '*') {
+            } else if (input[tokens.tok.start] == '*') {
                 sym = SYM_MUL;
-            } else if (input[tokens.starts[i]] == '/') {
+            } else if (input[tokens.tok.start] == '/') {
                 sym = SYM_DIV;
+            } else {
+                sym = SYM_NOP;
             }
             status = stack_machine_exec_sym(machine, sym);
             break;
@@ -241,26 +253,12 @@ int main(int argc, char* argv[])
         return 0;
     } else {
         char* input = argv[1];
-        struct TokenArray tokens;
-        size_t starts[TOK_CAPACITY];
-        size_t ends[TOK_CAPACITY];
-        enum TokenType types[TOK_CAPACITY];
-        memset(starts, 0, TOK_CAPACITY * sizeof(size_t));
-        memset(ends, 0, TOK_CAPACITY * sizeof(size_t));
-        memset(types, 0, TOK_CAPACITY * sizeof(size_t));
-        tokens.len = 0;
-        tokens.cap = TOK_CAPACITY;
-        tokens.starts = starts;
-        tokens.ends = ends;
-        tokens.types = types;
-
-        tokenize_str(&tokens, input, strlen(input));
 
         struct StackMachine machine;
         struct StackCell stack[255];
 
         stack_machine_init(&machine, stack, 255);
-        enum StackStatus status = stack_machine_eval(&machine, input, tokens);
+        enum StackStatus status = stack_machine_eval(&machine, input);
 
         printf("stack { status: %d, sp: %ld, top: %lf }\n", status, machine.sp, stack_machine_peek(&machine).num);
     }
