@@ -12,7 +12,6 @@ enum TokenType {
 };
 
 #define TOK_CAPACITY 255
-#define OUT_BUF_CAPACITY 255
 
 struct TokenArray {
     size_t len;
@@ -77,69 +76,6 @@ bool tokenize_str(struct TokenArray* tokens, char* in, size_t len)
     }
     tok_array_push(tokens, TOK_END, len, len + 1);
     return true;
-}
-
-struct BytesBuffer {
-    size_t len;
-    size_t cap;
-    int8_t* data;
-};
-
-bool buf_write_str(struct BytesBuffer* buf, char* str, size_t len)
-{
-    if (len >= buf->cap) {
-        return false;
-    }
-    memcpy(&buf->data[buf->len], str, len);
-    buf->len += len;
-    return true;
-}
-
-bool buf_write_str_range(struct BytesBuffer* buf, char* str, size_t start,
-    size_t end)
-{
-    size_t len = end - start;
-    return buf_write_str(buf, &str[start], len);
-}
-
-bool buf_write_to_str(char* str, size_t len, struct BytesBuffer buf)
-{
-    if (len < buf.len + 1)
-        return false;
-
-    memcpy(str, buf.data, len);
-    str[len] = 0;
-
-    return true;
-}
-
-bool buf_write_token(struct BytesBuffer* buf, char* input,
-    struct TokenArray tokens, size_t tokenIndex)
-{
-    if (tokenIndex >= tokens.len) {
-        return false;
-    }
-    bool ok = true;
-    switch (tokens.types[tokenIndex]) {
-    case TOK_NUM:
-        ok = buf_write_str(buf, "num ", 4);
-        break;
-    case TOK_STR:
-        ok = buf_write_str(buf, "str ", 4);
-        break;
-    case TOK_SYM:
-        ok = buf_write_str(buf, "sym ", 4);
-        break;
-    case TOK_ERR:
-        ok = buf_write_str(buf, "err ", 4);
-        break;
-    case TOK_END:
-        ok = buf_write_str(buf, "end ", 4);
-        break;
-    }
-    buf_write_str_range(buf, input, tokens.starts[tokenIndex],
-        tokens.ends[tokenIndex]);
-    return ok;
 }
 
 enum StackCellType {
@@ -319,22 +255,6 @@ int main(int argc, char* argv[])
         tokens.types = types;
 
         tokenize_str(&tokens, input, strlen(input));
-        struct BytesBuffer buf;
-        buf.len = 0;
-        int8_t data[OUT_BUF_CAPACITY];
-        buf.cap = sizeof data;
-        memset(data, 0, sizeof data);
-        buf.data = data;
-        char output[OUT_BUF_CAPACITY + 1];
-        memset(output, 0, sizeof output);
-
-        for (size_t i = 0; i < tokens.len; i++) {
-            if (i)
-                buf_write_str(&buf, ", ", 2);
-            buf_write_token(&buf, input, tokens, i);
-        }
-        buf_write_to_str(output, sizeof output, buf);
-        puts(output);
 
         struct StackMachine machine;
         struct StackCell stack[255];
