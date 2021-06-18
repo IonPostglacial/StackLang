@@ -86,14 +86,15 @@ bool tok_stream_next(struct TokenStream* tokens)
 }
 
 enum StackCellType {
+    CELL_TYPE_ERR,
     CELL_TYPE_NUM,
     CELL_TYPE_STR,
 };
 
-enum StackStatus {
-    STACK_OK,
-    STACK_OVERFLOW,
-    STACK_UNDERFLOW,
+enum StackError {
+    STACK_ERR_NONE,
+    STACK_ERR_OVERFLOW,
+    STACK_ERR_UNDERFLOW,
 };
 
 enum KnownSymbol {
@@ -108,6 +109,7 @@ struct StackCell {
     enum StackCellType type;
     union {
         double num;
+        enum StackError err;
         char* str;
     };
 };
@@ -121,102 +123,95 @@ struct StackMachine {
 void stack_machine_init(struct StackMachine* machine, struct StackCell* stack, size_t cap)
 {
     machine->stack = stack;
+    memset(machine->stack, 0, cap);
+    machine->stack[0].type = CELL_TYPE_ERR;
+    machine->stack[0].err = STACK_ERR_UNDERFLOW;
     machine->cap = cap;
     machine->sp = 0;
-    memset(machine->stack, 0, cap);
 }
 
-enum StackStatus stack_machine_push(struct StackMachine* machine, struct StackCell cell)
+enum StackError stack_machine_push(struct StackMachine* machine, struct StackCell cell)
 {
     if (machine->sp >= machine->cap - 1) {
-        return STACK_OVERFLOW;
+        return STACK_ERR_OVERFLOW;
     } else {
         machine->sp++;
         machine->stack[machine->sp] = cell;
     }
-    return STACK_OK;
+    return STACK_ERR_NONE;
 }
 
-enum StackStatus stack_machine_pop(struct StackMachine* machine)
+struct StackCell stack_machine_pop(struct StackMachine* machine)
 {
-    if (machine->sp <= 0) {
-        return STACK_UNDERFLOW;
-    } else {
+    struct StackCell top = machine->stack[machine->sp];
+    if (machine->sp > 0) {
         machine->sp--;
     }
-    return STACK_OK;
+    return top;
 }
 
 struct StackCell stack_machine_peek(struct StackMachine* machine)
 {
-    if (machine->sp < 0) {
-        struct StackCell cell;
-        cell.type = CELL_TYPE_NUM;
-        cell.num = 0;
-        return cell;
-    }
     return machine->stack[machine->sp];
 }
 
-enum StackStatus stack_machine_exec_sym(struct StackMachine* machine, enum KnownSymbol sym)
+enum StackError stack_machine_exec_sym(struct StackMachine* machine, enum KnownSymbol sym)
 {
-    enum StackStatus status = STACK_OK;
     struct StackCell op1, op2;
     struct StackCell res;
 
     switch (sym) {
     case SYM_ADD:
-        op1 = stack_machine_peek(machine);
-        stack_machine_pop(machine);
-        op2 = stack_machine_peek(machine);
-        status = stack_machine_pop(machine);
-        if (status == STACK_OK && op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             res.type = CELL_TYPE_NUM;
             res.num = op1.num + op2.num;
             stack_machine_push(machine, res);
         }
         break;
     case SYM_SUB:
-        op1 = stack_machine_peek(machine);
-        stack_machine_pop(machine);
-        op2 = stack_machine_peek(machine);
-        status = stack_machine_pop(machine);
-        if (status == STACK_OK && op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             res.type = CELL_TYPE_NUM;
             res.num = op1.num - op2.num;
             stack_machine_push(machine, res);
         }
         break;
     case SYM_MUL:
-        op1 = stack_machine_peek(machine);
-        stack_machine_pop(machine);
-        op2 = stack_machine_peek(machine);
-        status = stack_machine_pop(machine);
-        if (status == STACK_OK && op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             res.type = CELL_TYPE_NUM;
             res.num = op1.num * op2.num;
             stack_machine_push(machine, res);
         }
         break;
     case SYM_DIV:
-        op1 = stack_machine_peek(machine);
-        stack_machine_pop(machine);
-        op2 = stack_machine_peek(machine);
-        status = stack_machine_pop(machine);
-        if (status == STACK_OK && op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             res.type = CELL_TYPE_NUM;
             res.num = op1.num / op2.num;
             stack_machine_push(machine, res);
         }
         break;
+    case SYM_NOP:
+        break;
     }
-    return status;
+    struct StackCell top = stack_machine_peek(machine);
+    if (top.type == CELL_TYPE_ERR) {
+        return top.err;
+    } else {
+        return STACK_ERR_NONE;
+    }
 }
 
-enum StackStatus stack_machine_eval(struct StackMachine* machine, char* input)
+enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
 {
     struct TokenStream tokens;
-    enum StackStatus status = STACK_OK;
+    enum StackError err = STACK_ERR_NONE;
     struct StackCell cell;
     enum KnownSymbol sym;
     char* tokend;
@@ -226,7 +221,7 @@ enum StackStatus stack_machine_eval(struct StackMachine* machine, char* input)
         case TOK_NUM:
             cell.type = CELL_TYPE_NUM;
             cell.num = strtod(&input[tokens.tok.start], &tokend);
-            status = stack_machine_push(machine, cell);
+            err = stack_machine_push(machine, cell);
             break;
         case TOK_SYM:
             if (input[tokens.tok.start] == '+') {
@@ -240,11 +235,11 @@ enum StackStatus stack_machine_eval(struct StackMachine* machine, char* input)
             } else {
                 sym = SYM_NOP;
             }
-            status = stack_machine_exec_sym(machine, sym);
+            err = stack_machine_exec_sym(machine, sym);
             break;
         }
     }
-    return status;
+    return err;
 }
 
 int main(int argc, char* argv[])
@@ -255,11 +250,23 @@ int main(int argc, char* argv[])
         char* input = argv[1];
 
         struct StackMachine machine;
-        struct StackCell stack[255];
+        struct StackCell stack[256];
 
-        stack_machine_init(&machine, stack, 255);
-        enum StackStatus status = stack_machine_eval(&machine, input);
+        stack_machine_init(&machine, stack, 256);
+        enum StackError err = stack_machine_eval(&machine, input);
 
-        printf("stack { status: %d, sp: %ld, top: %lf }\n", status, machine.sp, stack_machine_peek(&machine).num);
+        switch (err) {
+        case STACK_ERR_NONE:
+            for (size_t i = machine.sp; i > 0; i--) {
+                printf("%ld\t%f\n", i, machine.stack[i].num);
+            }
+            break;
+        case STACK_ERR_OVERFLOW:
+            puts("stack overflow");
+            break;
+        case STACK_ERR_UNDERFLOW:
+            puts("stack underflow");
+            break;
+        }
     }
 }
