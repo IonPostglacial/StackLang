@@ -103,6 +103,8 @@ enum KnownSymbol {
     SYM_SUB,
     SYM_MUL,
     SYM_DIV,
+    SYM_INC,
+    SYM_DEC,
 };
 
 struct StackCell {
@@ -197,6 +199,22 @@ enum StackError stack_machine_exec_sym(struct StackMachine* machine, enum KnownS
             stack_machine_push(machine, res);
         }
         break;
+    case SYM_INC:
+        op1 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM) {
+            res.type = CELL_TYPE_NUM;
+            res.num = op1.num + 1;
+            stack_machine_push(machine, res);
+        }
+        break;
+    case SYM_DEC:
+        op1 = stack_machine_pop(machine);
+        if (op1.type == CELL_TYPE_NUM) {
+            res.type = CELL_TYPE_NUM;
+            res.num = op1.num - 1;
+            stack_machine_push(machine, res);
+        }
+        break;
     case SYM_NOP:
         break;
     }
@@ -232,6 +250,10 @@ enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
                 sym = SYM_MUL;
             } else if (input[tokens.tok.start] == '/') {
                 sym = SYM_DIV;
+            } else if (memcmp(&input[tokens.tok.start], "inc", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_INC;
+            } else if (memcmp(&input[tokens.tok.start], "dec", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_DEC;
             } else {
                 sym = SYM_NOP;
             }
