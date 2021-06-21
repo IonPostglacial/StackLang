@@ -235,6 +235,7 @@ enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
     char* tokend;
     tok_stream_init(&tokens, input);
     while (tok_stream_next(&tokens)) {
+        size_t toklen = tokens.tok.end - tokens.tok.start;
         switch (tokens.tok.type) {
         case TOK_NUM:
             cell.type = CELL_TYPE_NUM;
@@ -242,17 +243,17 @@ enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
             err = stack_machine_push(machine, cell);
             break;
         case TOK_SYM:
-            if (input[tokens.tok.start] == '+') {
+            if (toklen == 1 && input[tokens.tok.start] == '+') {
                 sym = SYM_ADD;
-            } else if (input[tokens.tok.start] == '-') {
+            } else if (toklen == 1 && input[tokens.tok.start] == '-') {
                 sym = SYM_SUB;
-            } else if (input[tokens.tok.start] == '*') {
+            } else if (toklen == 1 && input[tokens.tok.start] == '*') {
                 sym = SYM_MUL;
-            } else if (input[tokens.tok.start] == '/') {
+            } else if (toklen == 1 && input[tokens.tok.start] == '/') {
                 sym = SYM_DIV;
-            } else if (memcmp(&input[tokens.tok.start], "inc", tokens.tok.end - tokens.tok.start) == 0) {
+            } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "inc", tokens.tok.end - tokens.tok.start) == 0) {
                 sym = SYM_INC;
-            } else if (memcmp(&input[tokens.tok.start], "dec", tokens.tok.end - tokens.tok.start) == 0) {
+            } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "dec", tokens.tok.end - tokens.tok.start) == 0) {
                 sym = SYM_DEC;
             } else {
                 sym = SYM_NOP;
