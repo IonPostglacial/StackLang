@@ -103,6 +103,8 @@ enum KnownSymbol {
     SYM_SUB,
     SYM_MUL,
     SYM_DIV,
+    SYM_POP,
+    SYM_DUP,
     SYM_INC,
     SYM_DEC,
 };
@@ -113,7 +115,7 @@ struct StackCell {
         double num;
         enum StackError err;
         char* str;
-    };
+    } as;
 };
 
 struct StackMachine {
@@ -127,7 +129,7 @@ void stack_machine_init(struct StackMachine* machine, struct StackCell* stack, s
     machine->stack = stack;
     memset(machine->stack, 0, cap);
     machine->stack[0].type = CELL_TYPE_ERR;
-    machine->stack[0].err = STACK_ERR_UNDERFLOW;
+    machine->stack[0].as.err = STACK_ERR_UNDERFLOW;
     machine->cap = cap;
     machine->sp = 0;
 }
@@ -160,59 +162,52 @@ struct StackCell stack_machine_peek(struct StackMachine* machine)
 enum StackError stack_machine_exec_sym(struct StackMachine* machine, enum KnownSymbol sym)
 {
     struct StackCell op1, op2;
-    struct StackCell res;
 
     switch (sym) {
     case SYM_ADD:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num + op2.num;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num + op2.as.num } });
         }
         break;
     case SYM_SUB:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num - op2.num;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num - op2.as.num } });
         }
         break;
     case SYM_MUL:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num * op2.num;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num * op2.as.num } });
         }
         break;
     case SYM_DIV:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num / op2.num;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num / op2.as.num } });
         }
+        break;
+    case SYM_POP:
+        stack_machine_pop(machine);
+        break;
+    case SYM_DUP:
+        stack_machine_push(machine, stack_machine_peek(machine));
         break;
     case SYM_INC:
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num + 1;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num + 1 } });
         }
         break;
     case SYM_DEC:
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
-            res.type = CELL_TYPE_NUM;
-            res.num = op1.num - 1;
-            stack_machine_push(machine, res);
+            stack_machine_push(machine, (struct StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num - 1 } });
         }
         break;
     case SYM_NOP:
@@ -220,7 +215,7 @@ enum StackError stack_machine_exec_sym(struct StackMachine* machine, enum KnownS
     }
     struct StackCell top = stack_machine_peek(machine);
     if (top.type == CELL_TYPE_ERR) {
-        return top.err;
+        return top.as.err;
     } else {
         return STACK_ERR_NONE;
     }
@@ -237,9 +232,11 @@ enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
     while (tok_stream_next(&tokens)) {
         size_t toklen = tokens.tok.end - tokens.tok.start;
         switch (tokens.tok.type) {
+        case TOK_END:
+            return STACK_ERR_NONE;
         case TOK_NUM:
             cell.type = CELL_TYPE_NUM;
-            cell.num = strtod(&input[tokens.tok.start], &tokend);
+            cell.as.num = strtod(&input[tokens.tok.start], &tokend);
             err = stack_machine_push(machine, cell);
             break;
         case TOK_SYM:
@@ -249,6 +246,10 @@ enum StackError stack_machine_eval(struct StackMachine* machine, char* input)
                 sym = SYM_SUB;
             } else if (toklen == 1 && input[tokens.tok.start] == '*') {
                 sym = SYM_MUL;
+            } else if (toklen == 1 && input[tokens.tok.start] == '.') {
+                sym = SYM_POP;
+            } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "dup", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_DUP;
             } else if (toklen == 1 && input[tokens.tok.start] == '/') {
                 sym = SYM_DIV;
             } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "inc", tokens.tok.end - tokens.tok.start) == 0) {
@@ -281,7 +282,7 @@ int main(int argc, char* argv[])
         switch (err) {
         case STACK_ERR_NONE:
             for (size_t i = machine.sp; i > 0; i--) {
-                printf("%ld\t%f\n", i, machine.stack[i].num);
+                printf("%ld\t%f\n", i, machine.stack[i].as.num);
             }
             break;
         case STACK_ERR_OVERFLOW:

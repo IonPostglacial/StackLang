@@ -1,7 +1,7 @@
 all: interp
 
 interp: ./src/main.c
-	gcc $^ -o $@
+	gcc -Wall --debug $^ -o $@
 
 clean:
 	rm ./interp
