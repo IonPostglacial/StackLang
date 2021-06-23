@@ -89,6 +89,7 @@ typedef enum {
     CELL_TYPE_ERR,
     CELL_TYPE_NUM,
     CELL_TYPE_STR,
+    CELL_TYPE_BOOL,
 } StackCellType;
 
 typedef enum {
@@ -107,6 +108,10 @@ typedef enum {
     SYM_DUP,
     SYM_INC,
     SYM_DEC,
+    SYM_TRUE,
+    SYM_FALSE,
+    SYM_EQ,
+    SYM_NOT,
 } KnownSymbol;
 
 typedef struct {
@@ -115,6 +120,7 @@ typedef struct {
         double num;
         StackError err;
         char* str;
+        bool boolean;
     } as;
 } StackCell;
 
@@ -222,6 +228,24 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
             stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num - 1 } });
         }
         break;
+    case SYM_TRUE:
+        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = true } });
+        break;
+    case SYM_FALSE:
+        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = false } });
+        break;
+    case SYM_EQ:
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type ==  op2.type && op1.as.num == op2.as.num } });
+        break;
+    case SYM_NOT:
+        op1 = stack_machine_pop(machine);
+        stack_machine_push(machine, (StackCell) {
+            .type = CELL_TYPE_BOOL,
+            .as = { .boolean = op1.type !=  CELL_TYPE_BOOL || op1.as.boolean == false }
+        });
+        break;
     case SYM_NOP:
         break;
     }
@@ -268,6 +292,14 @@ StackError stack_machine_eval(StackMachine* machine, char* input)
                 sym = SYM_INC;
             } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "dec", tokens.tok.end - tokens.tok.start) == 0) {
                 sym = SYM_DEC;
+            } else if (toklen == 4 && memcmp(&input[tokens.tok.start], "true", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_TRUE;
+            } else if (toklen == 5 && memcmp(&input[tokens.tok.start], "false", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_FALSE;
+            } else if (toklen == 1 && memcmp(&input[tokens.tok.start], "=", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_EQ;
+            } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "not", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_NOT;
             } else {
                 sym = SYM_NOP;
             }
@@ -292,7 +324,11 @@ int main(int argc, char* argv[])
         switch (err) {
         case STACK_ERR_NONE:
             for (size_t i = machine.sp; i > 0; i--) {
-                printf("%ld\t%f\n", i, machine.stack[i].as.num);
+                if (machine.stack[i].type == CELL_TYPE_NUM) {
+                    printf("%ld\t%f\n", i, machine.stack[i].as.num);
+                } else if (machine.stack[i].type == CELL_TYPE_BOOL) {
+                    printf("%ld\t%s\n", i, machine.stack[i].as.boolean ? "true" : "false");
+                }
             }
             break;
         case STACK_ERR_OVERFLOW:
