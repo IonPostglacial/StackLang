@@ -126,7 +126,7 @@ typedef struct {
 
 void stack_machine_init(StackMachine* machine)
 {
-    machine->cap = 256;
+    machine->cap = 64;
     machine->stack = malloc(machine->cap * sizeof(StackCell));
     machine->stack[0].type = CELL_TYPE_ERR;
     machine->stack[0].as.err = STACK_ERR_UNDERFLOW;
