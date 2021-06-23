@@ -15,7 +15,7 @@ typedef struct {
     TokenType type;
     size_t start;
     size_t end;
-}  Token;
+} Token;
 
 typedef struct {
     char* src;
@@ -124,24 +124,36 @@ typedef struct {
     size_t sp;
 } StackMachine;
 
-void stack_machine_init(StackMachine* machine, StackCell* stack, size_t cap)
+void stack_machine_init(StackMachine* machine)
 {
-    machine->stack = stack;
-    memset(machine->stack, 0, cap);
+    machine->cap = 256;
+    machine->stack = malloc(machine->cap * sizeof(StackCell));
     machine->stack[0].type = CELL_TYPE_ERR;
     machine->stack[0].as.err = STACK_ERR_UNDERFLOW;
-    machine->cap = cap;
     machine->sp = 0;
+}
+
+void stack_machine_free(StackMachine* machine)
+{
+    free(machine->stack);
+    machine->stack = NULL;
+    machine->cap = 0;
 }
 
 StackError stack_machine_push(StackMachine* machine, StackCell cell)
 {
     if (machine->sp >= machine->cap - 1) {
-        return STACK_ERR_OVERFLOW;
-    } else {
-        machine->sp++;
-        machine->stack[machine->sp] = cell;
+        machine->cap *= 2;
+        StackCell* newstack = realloc(machine->stack, sizeof(StackCell) * machine->cap);
+        if (newstack == NULL) {
+            stack_machine_free(machine);
+            return STACK_ERR_OVERFLOW;
+        } else {
+            machine->stack = newstack;
+        }
     }
+    machine->sp++;
+    machine->stack[machine->sp] = cell;
     return STACK_ERR_NONE;
 }
 
@@ -274,11 +286,9 @@ int main(int argc, char* argv[])
         char* input = argv[1];
 
         StackMachine machine;
-        StackCell stack[256];
 
-        stack_machine_init(&machine, stack, 256);
+        stack_machine_init(&machine);
         StackError err = stack_machine_eval(&machine, input);
-
         switch (err) {
         case STACK_ERR_NONE:
             for (size_t i = machine.sp; i > 0; i--) {
@@ -292,5 +302,6 @@ int main(int argc, char* argv[])
             puts("stack underflow");
             break;
         }
+        stack_machine_free(&machine);
     }
 }
