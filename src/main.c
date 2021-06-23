@@ -112,6 +112,8 @@ typedef enum {
     SYM_FALSE,
     SYM_EQ,
     SYM_NOT,
+    SYM_AND,
+    SYM_OR,
 } KnownSymbol;
 
 typedef struct {
@@ -237,13 +239,26 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
     case SYM_EQ:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
-        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type ==  op2.type && op1.as.num == op2.as.num } });
+        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type == op2.type && op1.as.num == op2.as.num } });
         break;
     case SYM_NOT:
         op1 = stack_machine_pop(machine);
+        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type != CELL_TYPE_BOOL || op1.as.boolean == false } });
+        break;
+    case SYM_AND:
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
         stack_machine_push(machine, (StackCell) {
             .type = CELL_TYPE_BOOL,
-            .as = { .boolean = op1.type !=  CELL_TYPE_BOOL || op1.as.boolean == false }
+            .as = { .boolean = op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL && (op1.as.boolean && op2.as.boolean) }
+        });
+        break;
+    case SYM_OR:
+        op1 = stack_machine_pop(machine);
+        op2 = stack_machine_pop(machine);
+        stack_machine_push(machine, (StackCell) {
+            .type = CELL_TYPE_BOOL,
+            .as = { .boolean = op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL && (op1.as.boolean || op2.as.boolean) }
         });
         break;
     case SYM_NOP:
@@ -300,6 +315,10 @@ StackError stack_machine_eval(StackMachine* machine, char* input)
                 sym = SYM_EQ;
             } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "not", tokens.tok.end - tokens.tok.start) == 0) {
                 sym = SYM_NOT;
+            } else if (toklen == 3 && memcmp(&input[tokens.tok.start], "and", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_AND;
+            } else if (toklen == 2 && memcmp(&input[tokens.tok.start], "or", tokens.tok.end - tokens.tok.start) == 0) {
+                sym = SYM_OR;
             } else {
                 sym = SYM_NOP;
             }
