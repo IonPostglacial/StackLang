@@ -96,6 +96,7 @@ typedef enum {
     STACK_ERR_NONE,
     STACK_ERR_OVERFLOW,
     STACK_ERR_UNDERFLOW,
+    STACK_ERR_TYPE,
 } StackError;
 
 typedef enum {
@@ -165,6 +166,21 @@ StackError stack_machine_push(StackMachine* machine, StackCell cell)
     return STACK_ERR_NONE;
 }
 
+StackError stack_machine_push_num(StackMachine *machine, double num)
+{
+    return stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = num } });
+}
+
+StackError stack_machine_push_err(StackMachine *machine, StackError err)
+{
+    return stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_ERR, .as = { .err = err } });
+}
+
+StackError stack_machine_push_bool(StackMachine *machine, bool b)
+{
+    return stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_ERR, .as = { .boolean = b } });
+}
+
 StackCell stack_machine_pop(StackMachine* machine)
 {
     StackCell top = machine->stack[machine->sp];
@@ -188,28 +204,36 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num + op2.as.num } });
+            stack_machine_push_num(machine, op1.as.num + op2.as.num);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_SUB:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num - op2.as.num } });
+            stack_machine_push_num(machine, op1.as.num - op2.as.num);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_MUL:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num * op2.as.num } });
+            stack_machine_push_num(machine, op1.as.num * op2.as.num);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_DIV:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num / op2.as.num } });
+            stack_machine_push_num(machine, op1.as.num / op2.as.num);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_POP:
@@ -221,13 +245,17 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
     case SYM_INC:
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num + 1 } });
+            stack_machine_push_num(machine, op1.as.num + 1);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_DEC:
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
-            stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_NUM, .as = { .num = op1.as.num - 1 } });
+            stack_machine_push_num(machine, op1.as.num - 1);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_TRUE:
@@ -239,27 +267,35 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
     case SYM_EQ:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
-        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type == op2.type && op1.as.num == op2.as.num } });
+        if (op1.type != CELL_TYPE_ERR && op2.type != CELL_TYPE_ERR) {
+            stack_machine_push_bool(machine, op1.type == op2.type && op1.as.num == op2.as.num);
+        }
         break;
     case SYM_NOT:
         op1 = stack_machine_pop(machine);
-        stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = op1.type != CELL_TYPE_BOOL || op1.as.boolean == false } });
+        if (op1.type == CELL_TYPE_BOOL) {
+            stack_machine_push_bool(machine, op1.type != CELL_TYPE_BOOL || op1.as.boolean == false);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
+        }
         break;
     case SYM_AND:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
-        stack_machine_push(machine, (StackCell) {
-            .type = CELL_TYPE_BOOL,
-            .as = { .boolean = op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL && (op1.as.boolean && op2.as.boolean) }
-        });
+        if (op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL) {
+            stack_machine_push_bool(machine, op1.as.boolean && op2.as.boolean);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
+        }
         break;
     case SYM_OR:
         op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
-        stack_machine_push(machine, (StackCell) {
-            .type = CELL_TYPE_BOOL,
-            .as = { .boolean = op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL && (op1.as.boolean || op2.as.boolean) }
-        });
+        if (op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL) {
+            stack_machine_push_bool(machine, op1.as.boolean || op2.as.boolean);
+        } else {
+            stack_machine_push_err(machine, STACK_ERR_TYPE);
+        }
         break;
     case SYM_NOP:
         break;
@@ -280,7 +316,7 @@ StackError stack_machine_eval(StackMachine* machine, char* input)
     KnownSymbol sym;
     char* tokend;
     tok_stream_init(&tokens, input);
-    while (tok_stream_next(&tokens)) {
+    while (err == STACK_ERR_NONE && tok_stream_next(&tokens)) {
         size_t toklen = tokens.tok.end - tokens.tok.start;
         switch (tokens.tok.type) {
         case TOK_END:
@@ -344,9 +380,9 @@ int main(int argc, char* argv[])
         case STACK_ERR_NONE:
             for (size_t i = machine.sp; i > 0; i--) {
                 if (machine.stack[i].type == CELL_TYPE_NUM) {
-                    printf("%ld\t%f\n", i, machine.stack[i].as.num);
+                    printf("%lu\t%f\n", (long unsigned int)i, machine.stack[i].as.num);
                 } else if (machine.stack[i].type == CELL_TYPE_BOOL) {
-                    printf("%ld\t%s\n", i, machine.stack[i].as.boolean ? "true" : "false");
+                    printf("%lu\t%s\n", (long unsigned int)i, machine.stack[i].as.boolean ? "true" : "false");
                 }
             }
             break;
@@ -355,6 +391,9 @@ int main(int argc, char* argv[])
             break;
         case STACK_ERR_UNDERFLOW:
             puts("stack underflow");
+            break;
+        case STACK_ERR_TYPE:
+            puts("type error");
             break;
         }
         stack_machine_free(&machine);
