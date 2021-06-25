@@ -127,6 +127,15 @@ typedef struct {
     } as;
 } StackCell;
 
+bool stack_cell_eq(StackCell c1, StackCell c2)
+{
+    return c1.type == c2.type &&
+        (c1.type == CELL_TYPE_NUM ) ? (c1.as.num     == c2.as.num    ) :
+        (c1.type == CELL_TYPE_BOOL) ? (c1.as.boolean == c2.as.boolean) :
+        (c1.type == CELL_TYPE_STR ) ? (strcmp(c1.as.str, c2.as.str) == 0) :
+        false;
+}
+
 typedef struct {
     StackCell* stack;
     size_t cap;
@@ -178,7 +187,7 @@ StackError stack_machine_push_err(StackMachine *machine, StackError err)
 
 StackError stack_machine_push_bool(StackMachine *machine, bool b)
 {
-    return stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_ERR, .as = { .boolean = b } });
+    return stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = b } });
 }
 
 StackCell stack_machine_pop(StackMachine* machine)
@@ -201,26 +210,26 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
 
     switch (sym) {
     case SYM_ADD:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num + op2.as.num);
-        } else {
+        } else if (op2.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_SUB:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num - op2.as.num);
-        } else {
+        } else if (op2.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_MUL:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num * op2.as.num);
         } else {
@@ -228,11 +237,11 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
         }
         break;
     case SYM_DIV:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM && op2.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num / op2.as.num);
-        } else {
+        } else if (op2.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
@@ -246,7 +255,7 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num + 1);
-        } else {
+        } else if (op1.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
@@ -254,7 +263,7 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_NUM) {
             stack_machine_push_num(machine, op1.as.num - 1);
-        } else {
+        } else if (op1.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
@@ -265,35 +274,35 @@ StackError stack_machine_exec_sym(StackMachine* machine, KnownSymbol sym)
         stack_machine_push(machine, (StackCell) { .type = CELL_TYPE_BOOL, .as = { .boolean = false } });
         break;
     case SYM_EQ:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type != CELL_TYPE_ERR && op2.type != CELL_TYPE_ERR) {
-            stack_machine_push_bool(machine, op1.type == op2.type && op1.as.num == op2.as.num);
+            stack_machine_push_bool(machine, stack_cell_eq(op1, op2));
         }
         break;
     case SYM_NOT:
         op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_BOOL) {
-            stack_machine_push_bool(machine, op1.type != CELL_TYPE_BOOL || op1.as.boolean == false);
-        } else {
+            stack_machine_push_bool(machine, !op1.as.boolean);
+        } else if (op1.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_AND:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL) {
             stack_machine_push_bool(machine, op1.as.boolean && op2.as.boolean);
-        } else {
+        } else if (op2.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
     case SYM_OR:
-        op1 = stack_machine_pop(machine);
         op2 = stack_machine_pop(machine);
+        op1 = stack_machine_pop(machine);
         if (op1.type == CELL_TYPE_BOOL && op2.type == CELL_TYPE_BOOL) {
             stack_machine_push_bool(machine, op1.as.boolean || op2.as.boolean);
-        } else {
+        } else if (op2.type != CELL_TYPE_ERR) {
             stack_machine_push_err(machine, STACK_ERR_TYPE);
         }
         break;
