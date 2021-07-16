@@ -10,5 +10,4 @@ fn main() {
             Err(err) => println!("error: {:?}", err),
         }
     }
-
 }

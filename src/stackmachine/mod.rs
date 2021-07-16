@@ -1,77 +1,65 @@
+mod lex;
 mod parsing;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum StackCell {
+pub enum Cell {
     Num(f64),
     Str(String),
     Bool(bool),
+    Code(Vec<parsing::Ops>)
 }
 
-impl StackCell {
-    fn add(self, other: StackCell) -> Result<StackCell, StackError> {
+impl Cell {
+    fn add(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Num(a), StackCell::Num(b)) => Ok(StackCell::Num(a + b)),
-            (StackCell::Str(a), StackCell::Str(b)) => Ok(StackCell::Str(format!("{}{}", a, b))),
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Num(a + b)),
+            (Cell::Str(a), Cell::Str(b)) => Ok(Cell::Str(format!("{}{}", a, b))),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn sub(self, other: StackCell) -> Result<StackCell, StackError> {
+    fn sub(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Num(a), StackCell::Num(b)) => Ok(StackCell::Num(a - b)),
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Num(a - b)),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn mul(self, other: StackCell) -> Result<StackCell, StackError> {
+    fn mul(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Num(a), StackCell::Num(b)) => Ok(StackCell::Num(a * b)),
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Num(a * b)),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn div(self, other: StackCell) -> Result<StackCell, StackError> {
+    fn div(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Num(a), StackCell::Num(b)) => Ok(StackCell::Num(a / b)),
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Num(a / b)),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn inc(self) -> Result<StackCell, StackError> {
+    fn equals(self, other: Cell) -> Result<Cell, StackError> {
+        Ok(Cell::Bool(self == other))
+    }
+
+    fn not(self) -> Result<Cell, StackError> {
         match self {
-            StackCell::Num(n) => Ok(StackCell::Num(n + 1.0)),
+            Cell::Bool(b) => Ok(Cell::Bool(!b)),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn dec(self) -> Result<StackCell, StackError> {
-        match self {
-            StackCell::Num(n) => Ok(StackCell::Num(n - 1.0)),
-            _ => Err(StackError::InvalidType),
-        }
-    }
-
-    fn equals(self, other: StackCell) -> Result<StackCell, StackError> {
-        Ok(StackCell::Bool(self == other))
-    }
-
-    fn not(self) -> Result<StackCell, StackError> {
-        match self {
-            StackCell::Bool(b) => Ok(StackCell::Bool(!b)),
-            _ => Err(StackError::InvalidType),
-        }
-    }
-
-    fn and(self, other: StackCell) -> Result<StackCell, StackError> {
+    fn and(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Bool(a), StackCell::Bool(b)) => Ok(StackCell::Bool(a && b)),
+            (Cell::Bool(a), Cell::Bool(b)) => Ok(Cell::Bool(a && b)),
             _ => Err(StackError::InvalidType),
         }
     }
 
-    fn or(self, other: StackCell) -> Result<StackCell, StackError> {
+    fn or(self, other: Cell) -> Result<Cell, StackError> {
         match (self, other) {
-            (StackCell::Bool(a), StackCell::Bool(b)) => Ok(StackCell::Bool(a || b)),
+            (Cell::Bool(a), Cell::Bool(b)) => Ok(Cell::Bool(a || b)),
             _ => Err(StackError::InvalidType),
         }
     }
@@ -85,7 +73,7 @@ pub enum StackError {
 }
 
 pub struct StackMachine {
-    stack: Vec<StackCell>,
+    stack: Vec<Cell>,
 }
 
 pub fn new() -> StackMachine {
@@ -93,53 +81,45 @@ pub fn new() -> StackMachine {
 }
 
 impl StackMachine {
-    pub fn push(&mut self, cell: StackCell) {
+    pub fn push(&mut self, cell: Cell) {
         self.stack.push(cell);
     }
 
-    pub fn pop(&mut self) -> Result<StackCell, StackError> {
+    pub fn pop(&mut self) -> Result<Cell, StackError> {
         match self.stack.pop() {
             Some(cell) => Ok(cell),
             None => Err(StackError::StackUnderflow),
         }
     }
 
-    fn exec_symbol(&mut self, sym: parsing::Symbol) -> Result<(), StackError> {
+    fn exec_symbol(&mut self, sym: lex::Symbol) -> Result<(), StackError> {
         match sym {
-            parsing::Symbol::Add => {
+            lex::Symbol::Add => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.add(op1)?))
             },
-            parsing::Symbol::Sub => {
+            lex::Symbol::Sub => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.sub(op1)?))
             },
-            parsing::Symbol::Mul => {
+            lex::Symbol::Mul => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.mul(op1)?))
             },
-            parsing::Symbol::Div => {
+            lex::Symbol::Div => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.div(op1)?))
             },
-            parsing::Symbol::Inc => {
-                let op = self.pop()?;
-                Ok(self.push(op.inc()?))
-            },
-            parsing::Symbol::Dec => {
-                let op = self.pop()?;
-                Ok(self.push(op.dec()?))
-            },
-            parsing::Symbol::Pop => {
+            lex::Symbol::Pop => {
                 self.pop()?;
                 Ok(())
             },
-            parsing::Symbol::Dup => {
-                let mut new_top: Option<StackCell> = None;
+            lex::Symbol::Dup => {
+                let mut new_top: Option<Cell> = None;
                 {
                     if let Some(cell) = self.stack.last() {
                         new_top = Some(cell.clone())
@@ -151,41 +131,59 @@ impl StackMachine {
                     Err(StackError::StackUnderflow)
                 }
             },
-            parsing::Symbol::True => Ok(self.push(StackCell::Bool(true))),
-            parsing::Symbol::False => Ok(self.push(StackCell::Bool(false))),
-            parsing::Symbol::Eq => {
+            lex::Symbol::True => Ok(self.push(Cell::Bool(true))),
+            lex::Symbol::False => Ok(self.push(Cell::Bool(false))),
+            lex::Symbol::Eq => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.equals(op1)?))
             },
-            parsing::Symbol::Not => {
+            lex::Symbol::Not => {
                 let op = self.pop()?;
                 Ok(self.push(op.not()?))
             },
-            parsing::Symbol::And => {
+            lex::Symbol::And => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.and(op1)?))
             },
-            parsing::Symbol::Or => {
+            lex::Symbol::Or => {
                 let op1 = self.pop()?;
                 let op2 = self.pop()?;
                 Ok(self.push(op2.or(op1)?))
             },
-            parsing::Symbol::Custom(_) => Err(StackError::Unimplemented),
+            lex::Symbol::If => {
+                let if_false = self.pop()?;
+                let if_true = self.pop()?;
+                let cond_cell = self.pop()?;
+                match (cond_cell, if_true, if_false) {
+                    (Cell::Bool(cond), Cell::Code(ops_true), Cell::Code(ops_false)) => {
+                        self.exec_ops(if cond { ops_true } else { ops_false })
+                    }
+                    _ => Err(StackError::InvalidType)
+                }
+            },
+            lex::Symbol::Custom(_) => Err(StackError::Unimplemented),
         }
     }
 
-    pub fn eval(&mut self, source: &str) -> Result<(), StackError> {
-        for token in parsing::parse_source(source) {
-            if let Err(err) = match token {
-                parsing::Token::Num(n) => Ok(self.push(StackCell::Num(n))),
-                parsing::Token::Str(s) => Ok(self.push(StackCell::Str(String::from(s)))),
-                parsing::Token::Sym(s) => self.exec_symbol(s),
-                parsing::Token::Err(_) => Err(StackError::Unimplemented),
+    fn exec_ops(&mut self, ops: Vec<parsing::Ops>) -> Result<(), StackError> {
+        for op in ops {
+            if let Err(err) = match op {
+                parsing::Ops::Push(cell) => Ok(self.push(cell)),
+                parsing::Ops::Call(sym) => self.exec_symbol(sym),
+                parsing::Ops::Err(_) => Err(StackError::Unimplemented),
             } {
                 return Err(err);
             }
+        }
+        Ok(())
+    }
+
+    pub fn eval(&mut self, source: &str) -> Result<(), StackError> {
+        let tokens = lex::lex_source(source);
+        if let Some(ops) = parsing::parse_tokens(tokens) {
+            self.exec_ops(ops)?;
         }
         Ok(())
     }

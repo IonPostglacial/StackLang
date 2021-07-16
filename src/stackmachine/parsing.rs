@@ -1,124 +1,34 @@
-#[derive(Debug)]
-pub enum Symbol {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Inc,
-    Dec,
-    Pop,
-    Dup,
-    True,
-    False,
-    Eq,
-    Not,
-    And,
-    Or,
-    Custom(String),
-}
+use crate::stackmachine;
+use crate::stackmachine::lex;
 
-#[derive(Debug)]
-pub enum Token<'a> {
-    Num(f64),
-    Str(&'a str),
-    Sym(Symbol),
+#[derive(Debug, Clone, PartialEq)]
+pub enum Ops {
+    Push(stackmachine::Cell),
+    Call(lex::Symbol),
     Err(String),
 }
 
-pub struct TokenStream<'a> {
-    src: &'a str,
-    pos: usize,
-}
-
-fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
-    if in_num {
-        match tok_str.parse::<f64>() {
-            Ok(num) => Some(Token::Num(num)),
-            Err(_) => Some(Token::Err(format!("Invalid number: '{}'", tok_str))),
-        }
-    } else {
-        Some(Token::Sym(match tok_str {
-            "+" => Symbol::Add,
-            "-" => Symbol::Sub,
-            "*" => Symbol::Mul,
-            "/" => Symbol::Div,
-            "inc" => Symbol::Inc,
-            "dec" => Symbol::Dec,
-            "." => Symbol::Pop,
-            "dup" => Symbol::Dup,
-            "true" => Symbol::True,
-            "false" => Symbol::False,
-            "=" => Symbol::Eq,
-            "not" => Symbol::Not,
-            "and" => Symbol::And,
-            "or" => Symbol::Or,
-            _ => Symbol::Custom(String::from(tok_str))
-        }))
-    }
-}
-
-impl<'a> Iterator for TokenStream<'a> {
-    type Item = Token<'a>;
-
-    fn next(&mut self) -> Option<Token<'a>> {
-        if self.pos >= self.src.len() { return None }
-
-        let starting_pos = self.pos;
-        let mut in_tok = false;
-        let mut in_str = false;
-        let mut in_num = false;
-
-        for (i, c) in self.src[starting_pos..].chars().enumerate() {
-            let current_index = starting_pos + i;
-
-            if c == '"' {
-                in_str = !in_str;
-                if !in_str {
-                    let tok = Token::Str(&self.src[self.pos..current_index]);
-                    self.pos = current_index + 1;
-                    return Some(tok)
-                } else {
-                    self.pos = current_index + 1;
-                    continue
-                }
+pub fn parse_tokens<'a>(tokens: lex::TokenStream) -> Option<Vec<Ops>> {
+    let mut ops_blocks: Vec<Vec<Ops>> = vec![vec![]];
+    for token in tokens {
+        match token {
+            lex::Token::Num(n) => ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Num(n))),
+            lex::Token::Str(s) => ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Str(String::from(s)))),
+            lex::Token::Sym(s) => ops_blocks.last_mut()?.push(Ops::Call(s)),
+            lex::Token::Err(err) => ops_blocks.last_mut()?.push(Ops::Err(err)),
+            lex::Token::OpenBlock => {
+                let new_ops_block = vec![];
+                ops_blocks.push(new_ops_block);
             }
-            if !in_str {
-                match c {
-                    ' ' | '\t' => {
-                        let was_in_tok = in_tok;
-                        let was_in_num = in_num;
-                        in_num = false;
-                        in_tok = false;
-                        if was_in_tok {
-                            let tok_str = &self.src[self.pos..current_index];
-                            self.pos = current_index + 1;
-                            return produce_token(tok_str, was_in_num)
-                        } else {
-                            self.pos = current_index + 1
-                        }
-                    },
-                    '0' ..= '9' => {
-                        if !in_tok {
-                            in_num = true;
-                            in_tok = true;
-                        }
-                    }
-                    _ => {
-                        in_tok = true;
-                    }
+            lex::Token::CloseBlock => {
+                if let Some(completed_ops_block) = ops_blocks.pop() {
+                    ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Code(completed_ops_block)));
                 }
             }
         }
-        if in_str {
-            Some(Token::Err(String::from("Invalid token")))
-        } else {
-            let last_tok = &self.src[self.pos..];
-            self.pos = self.src.len();
-            produce_token(last_tok, in_num)
-        }
     }
-}
-
-pub fn parse_source(source: &str) -> TokenStream {
-    TokenStream { src: source, pos: 0 }
+    match ops_blocks.last() {
+        Some(ops) => Some(ops.clone()),
+        None => None,
+    }
 }
