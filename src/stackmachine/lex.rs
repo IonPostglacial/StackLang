@@ -13,6 +13,8 @@ pub enum Symbol {
     And,
     Or,
     If,
+    While,
+    Print,
     Custom(String),
 }
 
@@ -56,6 +58,8 @@ fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
             "and" => Symbol::And,
             "or" => Symbol::Or,
             "if" => Symbol::If,
+            "while" => Symbol::While,
+            "print" => Symbol::Print,
             _ => Symbol::Custom(String::from(tok_str))
         }))
     }

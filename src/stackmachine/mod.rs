@@ -1,12 +1,15 @@
 mod lex;
 mod parsing;
 
+use std::rc::{ Rc };
+use std::borrow::Borrow;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Cell {
     Num(f64),
     Str(String),
     Bool(bool),
-    Code(Vec<parsing::Ops>)
+    Code(Rc<Vec<parsing::Ops>>)
 }
 
 impl Cell {
@@ -158,20 +161,43 @@ impl StackMachine {
                 let cond_cell = self.pop()?;
                 match (cond_cell, if_true, if_false) {
                     (Cell::Bool(cond), Cell::Code(ops_true), Cell::Code(ops_false)) => {
-                        self.exec_ops(if cond { ops_true } else { ops_false })
-                    }
-                    _ => Err(StackError::InvalidType)
+                        self.exec_ops(if cond { ops_true.borrow() } else { ops_false.borrow() })
+                    },
+                    _ => Err(StackError::InvalidType),
                 }
             },
+            lex::Symbol::While => {
+                let loop_body = self.pop()?;
+                let cond_cell = self.pop()?;
+                match (cond_cell, loop_body) {
+                    (Cell::Code(cond_ops), Cell::Code(loop_ops)) => {
+                        self.exec_symbol(lex::Symbol::Dup)?;
+                        self.exec_ops(&cond_ops)?;
+                        while self.stack.len() > 0 && self.stack.pop() == Some(Cell::Bool(true)) {
+                            self.exec_ops(&loop_ops)?;
+                            self.exec_symbol(lex::Symbol::Dup)?;
+                            self.exec_ops(&cond_ops)?;
+                        }
+                        Ok(())
+                    },
+                    _ => Err(StackError::InvalidType),
+                }
+            },
+            lex::Symbol::Print => {
+                if let Some(cell) = self.stack.last() {
+                    println!("{:?}", cell);
+                }
+                Ok(())
+            }
             lex::Symbol::Custom(_) => Err(StackError::Unimplemented),
         }
     }
 
-    fn exec_ops(&mut self, ops: Vec<parsing::Ops>) -> Result<(), StackError> {
+    fn exec_ops(&mut self, ops: &Vec<parsing::Ops>) -> Result<(), StackError> {
         for op in ops {
             if let Err(err) = match op {
-                parsing::Ops::Push(cell) => Ok(self.push(cell)),
-                parsing::Ops::Call(sym) => self.exec_symbol(sym),
+                parsing::Ops::Push(cell) => Ok(self.push(cell.clone())),
+                parsing::Ops::Call(sym) => self.exec_symbol(sym.clone()),
                 parsing::Ops::Err(_) => Err(StackError::Unimplemented),
             } {
                 return Err(err);
@@ -183,7 +209,7 @@ impl StackMachine {
     pub fn eval(&mut self, source: &str) -> Result<(), StackError> {
         let tokens = lex::lex_source(source);
         if let Some(ops) = parsing::parse_tokens(tokens) {
-            self.exec_ops(ops)?;
+            self.exec_ops(&ops)?;
         }
         Ok(())
     }

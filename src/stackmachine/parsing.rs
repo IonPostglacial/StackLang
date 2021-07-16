@@ -1,5 +1,6 @@
 use crate::stackmachine;
 use crate::stackmachine::lex;
+use std::rc::{ Rc };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ops {
@@ -22,7 +23,7 @@ pub fn parse_tokens<'a>(tokens: lex::TokenStream) -> Option<Vec<Ops>> {
             }
             lex::Token::CloseBlock => {
                 if let Some(completed_ops_block) = ops_blocks.pop() {
-                    ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Code(completed_ops_block)));
+                    ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Code(Rc::new(completed_ops_block))));
                 }
             }
         }
