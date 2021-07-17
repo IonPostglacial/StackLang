@@ -1,6 +1,7 @@
 mod lex;
 mod parsing;
 
+use std::collections::{ HashMap };
 use std::rc::{ Rc };
 use std::borrow::Borrow;
 
@@ -77,10 +78,11 @@ pub enum StackError {
 
 pub struct StackMachine {
     stack: Vec<Cell>,
+    definitions: HashMap<String, Rc<Vec<parsing::Ops>>>,
 }
 
 pub fn new() -> StackMachine {
-    StackMachine { stack: vec![] }
+    StackMachine { stack: vec![], definitions:HashMap::new() }
 }
 
 impl StackMachine {
@@ -134,6 +136,22 @@ impl StackMachine {
                     Err(StackError::StackUnderflow)
                 }
             },
+            lex::Symbol::Swap => {
+                let op2 = self.pop()?;
+                let op1 = self.pop()?;
+                self.push(op2);
+                self.push(op1);
+                Ok(())
+            },
+            lex::Symbol::Rot => {
+                let op3 = self.pop()?;
+                let op2 = self.pop()?;
+                let op1 = self.pop()?;
+                self.push(op2);
+                self.push(op3);
+                self.push(op1);
+                Ok(())
+            },
             lex::Symbol::True => Ok(self.push(Cell::Bool(true))),
             lex::Symbol::False => Ok(self.push(Cell::Bool(false))),
             lex::Symbol::Eq => {
@@ -183,13 +201,43 @@ impl StackMachine {
                     _ => Err(StackError::InvalidType),
                 }
             },
+            lex::Symbol::Def => {
+                let def_body = self.pop()?;
+                let def_sym = self.pop()?;
+                match (def_sym, def_body) {
+                    (Cell::Str(sym), Cell::Code(ops)) => {
+                        self.definitions.insert(sym, ops);
+                        Ok(())
+                    },
+                    _ => Err(StackError::InvalidType)
+                }
+            },
+            lex::Symbol::Exec => {
+                match self.pop()? {
+                    Cell::Code(ops) => self.exec_ops(ops.borrow()),
+                    _ => Err(StackError::InvalidType),
+                }
+            },
             lex::Symbol::Print => {
                 if let Some(cell) = self.stack.last() {
                     println!("{:?}", cell);
                 }
                 Ok(())
             }
-            lex::Symbol::Custom(_) => Err(StackError::Unimplemented),
+            lex::Symbol::Custom(sym) => {
+                let mut maybe_ops: Option<Rc<Vec<parsing::Ops>>> = None;
+                {
+                    match self.definitions.get(&sym) {
+                        Some(ops) => maybe_ops = Some(ops.clone()),
+                        None => {}
+                    }
+                }
+                if let Some(ops) = maybe_ops {
+                    self.exec_ops(ops.borrow())
+                } else {
+                    Err(StackError::Unimplemented)
+                }
+            },
         }
     }
 

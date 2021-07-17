@@ -6,6 +6,8 @@ pub enum Symbol {
     Div,
     Pop,
     Dup,
+    Swap,
+    Rot,
     True,
     False,
     Eq,
@@ -14,6 +16,8 @@ pub enum Symbol {
     Or,
     If,
     While,
+    Def,
+    Exec,
     Print,
     Custom(String),
 }
@@ -51,6 +55,8 @@ fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
             "/" => Symbol::Div,
             "." => Symbol::Pop,
             "dup" => Symbol::Dup,
+            "swap" => Symbol::Swap,
+            "rot" => Symbol::Rot,
             "true" => Symbol::True,
             "false" => Symbol::False,
             "=" => Symbol::Eq,
@@ -59,6 +65,8 @@ fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
             "or" => Symbol::Or,
             "if" => Symbol::If,
             "while" => Symbol::While,
+            "def" => Symbol::Def,
+            "exec" => Symbol::Exec,
             "print" => Symbol::Print,
             _ => Symbol::Custom(String::from(tok_str))
         }))
