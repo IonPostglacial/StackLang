@@ -1,10 +1,10 @@
-use crate::stackmachine;
-use crate::stackmachine::lex;
+use crate::stack;
+use crate::stack::lex;
 use std::rc::{ Rc };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ops {
-    Push(stackmachine::Cell),
+    Push(stack::Cell),
     Call(lex::Symbol),
     Err(String),
 }
@@ -13,8 +13,8 @@ pub fn parse_tokens<'a>(tokens: lex::TokenStream) -> Option<Vec<Ops>> {
     let mut ops_blocks: Vec<Vec<Ops>> = vec![vec![]];
     for token in tokens {
         match token {
-            lex::Token::Num(n) => ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Num(n))),
-            lex::Token::Str(s) => ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Str(String::from(s)))),
+            lex::Token::Num(n) => ops_blocks.last_mut()?.push(Ops::Push(stack::Cell::Num(n))),
+            lex::Token::Str(s) => ops_blocks.last_mut()?.push(Ops::Push(stack::Cell::Str(String::from(s)))),
             lex::Token::Sym(s) => ops_blocks.last_mut()?.push(Ops::Call(s)),
             lex::Token::Err(err) => ops_blocks.last_mut()?.push(Ops::Err(err)),
             lex::Token::OpenBlock => {
@@ -23,7 +23,7 @@ pub fn parse_tokens<'a>(tokens: lex::TokenStream) -> Option<Vec<Ops>> {
             }
             lex::Token::CloseBlock => {
                 if let Some(completed_ops_block) = ops_blocks.pop() {
-                    ops_blocks.last_mut()?.push(Ops::Push(stackmachine::Cell::Code(Rc::new(completed_ops_block))));
+                    ops_blocks.last_mut()?.push(Ops::Push(stack::Cell::Code(Rc::new(completed_ops_block))));
                 }
             }
         }

@@ -1,9 +1,9 @@
-mod stackmachine;
+mod stack;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 2 {
-        let mut machine = stackmachine::new();
+        let mut machine = stack::Machine::new();
 
         match machine.eval(&args[1]) {
             Ok(()) => machine.print_stack(),
