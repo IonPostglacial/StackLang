@@ -1,7 +1,7 @@
-mod lex;
-mod parsing;
-mod machine;
 mod cell;
+mod lex;
+mod machine;
+mod parsing;
 
 #[derive(Debug)]
 pub enum Error {

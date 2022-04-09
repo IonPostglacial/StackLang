@@ -68,7 +68,7 @@ fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
             "def" => Symbol::Def,
             "exec" => Symbol::Exec,
             "print" => Symbol::Print,
-            _ => Symbol::Custom(String::from(tok_str))
+            _ => Symbol::Custom(String::from(tok_str)),
         }))
     }
 }
@@ -77,7 +77,9 @@ impl<'a> Iterator for TokenStream<'a> {
     type Item = Token<'a>;
 
     fn next(&mut self) -> Option<Token<'a>> {
-        if self.pos >= self.src.len() { return None }
+        if self.pos >= self.src.len() {
+            return None;
+        }
 
         let starting_pos = self.pos;
         let mut in_tok = false;
@@ -92,10 +94,10 @@ impl<'a> Iterator for TokenStream<'a> {
                 if !in_str {
                     let tok = Token::Str(&self.src[self.pos..current_index]);
                     self.pos = current_index + 1;
-                    return Some(tok)
+                    return Some(tok);
                 } else {
                     self.pos = current_index + 1;
-                    continue
+                    continue;
                 }
             }
             if !in_str {
@@ -108,12 +110,12 @@ impl<'a> Iterator for TokenStream<'a> {
                         if was_in_tok {
                             let tok_str = &self.src[self.pos..current_index];
                             self.pos = current_index + 1;
-                            return produce_token(tok_str, was_in_num)
+                            return produce_token(tok_str, was_in_num);
                         } else {
                             self.pos = current_index + 1
                         }
-                    },
-                    '0' ..= '9' => {
+                    }
+                    '0'..='9' => {
                         if !in_tok {
                             in_num = true;
                             in_tok = true;
@@ -136,5 +138,8 @@ impl<'a> Iterator for TokenStream<'a> {
 }
 
 pub fn lex_source(source: &str) -> TokenStream {
-    TokenStream { src: source, pos: 0 }
+    TokenStream {
+        src: source,
+        pos: 0,
+    }
 }
