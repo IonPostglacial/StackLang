@@ -51,6 +51,46 @@ impl Cell {
         Ok(Cell::Bool(self == other))
     }
 
+    pub fn lt(self, other: Cell) -> Result<Cell, stack::Error> {
+        match (self, other) {
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Bool(a < b)),
+            (Cell::Str(a), Cell::Str(b)) => Ok(Cell::Bool(a < b)),
+            _ => Err(stack::Error::InvalidType(
+                "< is only defined for num and str".into(),
+            )),
+        }
+    }
+
+    pub fn gt(self, other: Cell) -> Result<Cell, stack::Error> {
+        match (self, other) {
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Bool(a > b)),
+            (Cell::Str(a), Cell::Str(b)) => Ok(Cell::Bool(a > b)),
+            _ => Err(stack::Error::InvalidType(
+                "> is only defined for num and str".into(),
+            )),
+        }
+    }
+
+    pub fn lte(self, other: Cell) -> Result<Cell, stack::Error> {
+        match (self, other) {
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Bool(a <= b)),
+            (Cell::Str(a), Cell::Str(b)) => Ok(Cell::Bool(a <= b)),
+            _ => Err(stack::Error::InvalidType(
+                "<= is only defined for num and str".into(),
+            )),
+        }
+    }
+
+    pub fn gte(self, other: Cell) -> Result<Cell, stack::Error> {
+        match (self, other) {
+            (Cell::Num(a), Cell::Num(b)) => Ok(Cell::Bool(a >= b)),
+            (Cell::Str(a), Cell::Str(b)) => Ok(Cell::Bool(a >= b)),
+            _ => Err(stack::Error::InvalidType(
+                ">= is only defined for num and str".into(),
+            )),
+        }
+    }
+
     pub fn not(self) -> Result<Cell, stack::Error> {
         match self {
             Cell::Bool(b) => Ok(Cell::Bool(!b)),

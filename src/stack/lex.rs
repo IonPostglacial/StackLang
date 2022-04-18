@@ -11,6 +11,10 @@ pub enum Symbol {
     True,
     False,
     Eq,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
     Not,
     And,
     Or,
@@ -60,6 +64,10 @@ fn produce_token(tok_str: &str, in_num: bool) -> Option<Token> {
             "true" => Symbol::True,
             "false" => Symbol::False,
             "=" => Symbol::Eq,
+            "<" => Symbol::Lt,
+            ">" => Symbol::Gt,
+            "<=" => Symbol::Lte,
+            ">=" => Symbol::Gte,
             "not" => Symbol::Not,
             "and" => Symbol::And,
             "or" => Symbol::Or,
@@ -102,7 +110,7 @@ impl<'a> Iterator for TokenStream<'a> {
             }
             if !in_str {
                 match c {
-                    ' ' | '\t' => {
+                    ' ' | '\t' | '\n' => {
                         let was_in_tok = in_tok;
                         let was_in_num = in_num;
                         in_num = false;

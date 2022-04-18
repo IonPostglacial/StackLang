@@ -90,6 +90,26 @@ impl Machine {
                 let op2 = self.pop()?;
                 Ok(self.push(op2.equals(op1)?))
             }
+            lex::Symbol::Lt => {
+                let op1 = self.pop()?;
+                let op2 = self.pop()?;
+                Ok(self.push(op2.lt(op1)?))
+            }
+            lex::Symbol::Gt => {
+                let op1 = self.pop()?;
+                let op2 = self.pop()?;
+                Ok(self.push(op2.gt(op1)?))
+            }
+            lex::Symbol::Lte => {
+                let op1 = self.pop()?;
+                let op2 = self.pop()?;
+                Ok(self.push(op2.lte(op1)?))
+            }
+            lex::Symbol::Gte => {
+                let op1 = self.pop()?;
+                let op2 = self.pop()?;
+                Ok(self.push(op2.gte(op1)?))
+            }
             lex::Symbol::Not => {
                 let op = self.pop()?;
                 Ok(self.push(op.not()?))

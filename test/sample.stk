@@ -1,0 +1,23 @@
+"square" { dup * } def
+
+"square-distance" { square swap square + } def
+
+3 2 square-distance print .
+
+"majority-status" { 18 >= { "major" } { "minor" } if } def
+
+5 majority-status print .
+22 majority-status print .
+
+"factorial" {
+    1 swap
+    {
+        dup rot *
+        swap
+        1 -
+        dup 0 >
+    } while
+    .
+} def
+
+5 factorial print .
