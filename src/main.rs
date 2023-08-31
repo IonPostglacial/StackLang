@@ -7,7 +7,7 @@ fn main() {
 
         match &*args[1] {
             "-i" => match machine.eval(&args[2]) {
-                Ok(()) => machine.print_stack(),
+                Ok(stack) => println!("{:?}", stack),
                 Err(err) => println!("error: {:?}", err),
             },
             "-f" => {
@@ -15,7 +15,7 @@ fn main() {
                 match file_content {
                     Ok(text) => {
                         match machine.eval(&text) {
-                            Ok(()) => machine.print_stack(),
+                            Ok(stack) => println!("{:?}", stack),
                             Err(err) => println!("error: {:?}", err),
                         }
                     }

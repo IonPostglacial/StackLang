@@ -1,15 +1,15 @@
-"square" { dup * } def
+{ dup * } :square def
 
-"square-distance" { square swap square + } def
+{ square swap square + } :square-distance def
 
-3 2 square-distance print .
+3 2 square-distance print linebreak .
 
-"majority-status" { 18 >= { "major" } { "minor" } if } def
+{ 18 >= { "major" } { "minor" } rot if } :majority-status def
 
-5 majority-status print .
-22 majority-status print .
+5 majority-status print linebreak .
+22 majority-status print linebreak .
 
-"factorial" {
+{
     1 swap
     {
         dup rot *
@@ -18,6 +18,6 @@
         dup 0 >
     } while
     .
-} def
+} :factorial def
 
-5 factorial print .
+5 factorial print linebreak .
