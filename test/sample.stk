@@ -4,7 +4,7 @@
 
 3 2 square-distance print linebreak .
 
-{ 18 >= { "major" } { "minor" } rot if } :majority-status def
+{ 18 >= { "major" } { "minor" } if } :majority-status def
 
 5 majority-status print linebreak .
 22 majority-status print linebreak .

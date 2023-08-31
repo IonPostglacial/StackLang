@@ -217,11 +217,17 @@ impl Machine {
                     }
                 }
                 Op::CondPop => {
-                    let cond = self.pop()?;
-                    if cond == Cell::False {
-                        self.swap()?;
+                    let len = self.stack.len();
+                    if len < 3 {
+                        return Err(Error::StackUnderflow)
                     }
-                    self.pop()?;
+                    let cond = &self.stack[len - 3];
+                    if cond == &Cell::False {
+                        self.stack.swap(len - 1, len - 3); 
+                    } else {
+                        self.stack.swap(len - 2, len - 3); 
+                    }
+                    self.stack.truncate(len - 2);
                     self.instruction_counter += 1;
                 }
                 Op::While => {
